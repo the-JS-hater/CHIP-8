@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <time.h>
 #include <raylib.h>
 #include <cstdint>
 #include <stack>
@@ -9,7 +11,6 @@ const int SCREEN_WIDTH = DISPLAY_WIDTH * PIXEL_SIZE;
 const int SCREEN_HEIGHT = DISPLAY_HEIGHT * PIXEL_SIZE;
 const int FRAMERATE = 60; // ideal for decrementing sound-/delayTimer:s
 const int HZ_TIMER = 700 * FRAMERATE; // controll instructions executed per second
-
 
 
 // Memory: CHIP-8 has direct access to up to 4 kilobytes of RAM
@@ -24,7 +25,7 @@ uint8_t* memory[4096];
 // Display: 64 x 32 pixels (or 128 x 64 for SUPER-CHIP) monochrome, ie. black or
 // white
 
-bool** display[32][64];
+bool display[32][64];
 // A program counter, often called just “programCounter”, which points at the
 // current instruction in memory
 //
@@ -130,6 +131,15 @@ void updateDisplay() {
 }
 
 
+void clearScreen() {
+	for (int y = 0; y < DISPLAY_HEIGHT; y++) {
+		for (int x = 0; x < DISPLAY_WIDTH; x++) {
+			display[y][x] = false;
+		}
+	}
+}
+
+
 // Fetch the instruction from memory at the current programCounter (program
 // counter)
 const uint16_t fetch() {
@@ -142,6 +152,153 @@ const uint16_t fetch() {
 }
 
 
+const uint8_t readRegister(uint8_t name) {
+	switch (name) {
+		case 0x0: {
+			return V0; 
+			break;
+		} 
+		case 0x1: {
+			return V1; 
+			break;
+		} 
+		case 0x2: {
+			return V2; 
+			break;
+		} 
+		case 0x3: {
+			return V3; 
+			break;
+		} 
+		case 0x4: {
+			return V4; 
+			break;
+		} 
+		case 0x5: {
+			return V5; 
+			break;
+		} 
+		case 0x6: {
+			return V6; 
+			break;
+		} 
+		case 0x7: {
+			return V7; 
+			break;
+		} 
+		case 0x8: {
+			return V8; 
+			break;
+		} 
+		case 0x9: {
+			return V9; 
+			break;
+		} 
+		case 0xA: {
+			return VA; 
+			break;
+		} 
+		case 0xB: {
+			return VB; 
+			break;
+		} 
+		case 0xC: {
+			return VC; 
+			break;
+		} 
+		case 0xD: {
+			return VD; 
+			break;
+		} 
+		case 0xE: {
+			return VE; 
+			break;
+		} 
+		case 0xF: {
+			return VF; 
+			break;
+		} 
+		default:
+			//WARN: should not be reached
+			return -1;
+			break;
+	}
+}
+
+
+void overwriteRegister(uint8_t name, uint8_t newValue) {
+	switch (name) {
+		case 0x0: {
+			V0 = newValue;
+			return; 
+		} 
+		case 0x1: {
+			V1 = newValue;
+			return; 
+		} 
+		case 0x2: {
+			V2 = newValue;
+			return; 
+		} 
+		case 0x3: {
+			V3 = newValue;
+			return; 
+		} 
+		case 0x4: {
+			V4 = newValue;
+			return; 
+		} 
+		case 0x5: {
+			V5 = newValue;
+			return; 
+		} 
+		case 0x6: {
+			V6 = newValue;
+			return; 
+		} 
+		case 0x7: {
+			V7 = newValue;
+			return; 
+		} 
+		case 0x8: {
+			V8 = newValue;
+			return; 
+		} 
+		case 0x9: {
+			V9 = newValue;
+			return; 
+		} 
+		case 0xA: {
+			VA = newValue;
+			return; 
+		} 
+		case 0xB: {
+			VB = newValue;
+			return; 
+		} 
+		case 0xC: {
+			VC = newValue;
+			return; 
+		} 
+		case 0xD: {
+			VD = newValue;
+			return; 
+		} 
+		case 0xE: {
+			VE = newValue;
+			return; 
+		} 
+		case 0xF: {
+			VF = newValue;
+			return; 
+		} 
+		default:
+			//WARN: should not be reached
+			break;
+	}
+}
+
+
 // Decode the instruction to find out what the emulator should do
 void decode(const uint16_t& instruction) {
 	// X: The second nibble. Used to look up one of the 16 registers (VX) from V0 through VF.
@@ -150,11 +307,135 @@ void decode(const uint16_t& instruction) {
 	// NN: The second byte (third and fourth nibbles). An 8-bit immediate number.
 	// NNN: The second, third and fourth nibbles. A 12-bit immediate memory address.
 	
-	// switch() {
+	uint8_t firstNibble 	= instruction & 0xF000;
+	uint8_t	secondNibble	= instruction & 0x0F00; 
+	uint8_t	thirdNibble		= instruction & 0x00F0;
+	uint8_t	fourthNibble	= instruction & 0x000F;
+	
+	switch (firstNibble) {
+		case 0x0:
+			switch (instruction) {
+				case 0x00E0: { 
+					clearScreen();
+					break;
+				}; 
+				case 0x00EE: {
+					//Returning from subroutine
+					programCounter = stack.top();
+					stack.pop();
+					break;
+				};
+			}
+			break;
+		case 0x1: { 
+			// 0x1NNN Jump to adress NNN 
+			programCounter = instruction & 0x0FFF;
+			break;
+		} 
+		case 0x2: {
+			// 0x2NNN Call subroutine at NNN
+			stack.push(programCounter);
+			programCounter = instruction & 0x0FFF;
+			break;
+		}
+		case 0x3: {
+			// 3XNN skip one instruction if VX is equal to NN
+			if (readRegister(secondNibble) == (instruction & 0x00FF)) {
+				programCounter += 2;
+			}
+			break;
+		}
+		case 0x4: {
+			// 4XNN skip one instruction if VX is NOT equal to NN
+			if (readRegister(secondNibble) != (instruction & 0x00FF)) {
+				programCounter += 2;
+			}
+			break;
+		} 
+		case 0x5: {
+			// 5XY0 skip one instruction if VX and VY are equal
+			if (readRegister(secondNibble) == readRegister(thirdNibble)) {
+				programCounter += 2;
+			}
+			break;
+		} 
+		case 0x6: {
+			// 6XNN Simply set VX to the value NN
+			overwriteRegister(secondNibble, instruction & 0x00FF);
+			break;
+		}
+		case 0x7: {
+			// 7XNN Add NN to VX
+			uint8_t newSum = readRegister(secondNibble) + (instruction & 0x00FF);
+			overwriteRegister(secondNibble, newSum);
+			break;
+		} 
+		case 0x8: {
 
-	// }
+			break;
+		} 
+		case 0x9: {
+			// 9XY0 skip one instruction if VX and VY are NOT equal
+			if (readRegister(secondNibble) != readRegister(thirdNibble)) {
+				programCounter += 2;
+			}
+			break;
+		}
+		case 0xA: {
+			// ANNN sets register I NNN
+			register_I = instruction & 0x0FFF;
+			break;
+		} 
+		case 0xB: {
+			// BNNN Jump with offset
+			// jump to the address V0 + NNN  
+			// WARN: Ambiguous instruction!
+			programCounter = readRegister(0x0) + (instruction & 0x0FFF);
+			break;
+		} 
+		case 0xC: {
+			// CXNN
+			// generate a random number, binary AND it with the value NN, and puts the result in VX
+			uint8_t rand8bit = rand()%256;
+			overwriteRegister(secondNibble, instruction & 0x00FF);
+			break;
+		} 
+		case 0xD: {
+			// DXYN Display
+			// Draw an N pixels tall sprite from the memory location that
+			// the I index register is holding to the screen, at the
+			// horizontal X coordinate in VX and the Y coordinate in VY
+      
+			// uint8_t X = readRegister(secondNibble) & 63;
+      // uint8_t Y = readRegister(thirdNibble) & 31;
+			// VF = 0;
+			// for (int i = 0; i < fourthNibble; i++) {
+			// 	uint8_t spriteData = *memory[register_I + i];
+			// 	for (int j = 0; j < 8; j++) {
+			// 		if (spriteData & 0x01){
+			// 			if (display[Y][X]) {
+			// 				display[Y][X] = false;
+			// 				VF = 1;
+			// 			} else {
+			// 				display[Y][X] = true;
+			// 			}
+			// 		}	
+			// 		spriteData = spriteData >> 1;
+			// 	}
+			// }
 
 
+			break;
+		} 
+		case 0xE: {
+
+			break;
+		} 
+		case 0xF: {
+
+			break;
+		} 
+	}
 }
 
 
@@ -162,6 +443,7 @@ int main() {
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CHIP-8 EMULATOR");
 	SetTargetFPS(FRAMERATE);
 	
+	srand(time(NULL)); // set random seed using time
 	while(!WindowShouldClose()) {
 		decrementTimers();
 		updateDisplay();
