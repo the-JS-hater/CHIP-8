@@ -24,7 +24,6 @@ uint8_t* memory[4096];
 
 // Display: 64 x 32 pixels (or 128 x 64 for SUPER-CHIP) monochrome, ie. black or
 // white
-
 bool display[32][64];
 // A program counter, often called just “programCounter”, which points at the
 // current instruction in memory
@@ -35,11 +34,11 @@ bool display[32][64];
 // modern interpreters are not in the same memory space, you should do the same
 // to be able to run the old programs; you can just leave the initial space
 // empty, except for the font.
-uint16_t programCounter;
+uint16_t programCounter = 0x200; 
 
 // One 16-bit index register called “I” which is used to point at locations in
 // memory
-uint16_t register_I;
+uint16_t register_I = 0;
 
 
 // A stack for 16-bit addresses, which is used to call subroutines/functions and
@@ -49,32 +48,30 @@ std::stack<uint16_t> stack;
 
 // An 8-bit delay timer which is decremented at a rate of 60 Hz (60 times per
 // second) until it reaches 0
-uint8_t delayTimer;
+uint8_t delayTimer = 0;
 
 // An 8-bit sound timer which functions like the delay timer, but which also
 // gives off a beeping sound as long as it’s not 0
-uint8_t soundTimer;
+uint8_t soundTimer = 0;
 
 
-// 16 8-bit (one byte) general-purpose variable registers numbered 0 through F
-// hexadecimal, ie. 0 through 15 in decimal, called V0 through VF
-
-uint8_t V0; 
-uint8_t V1;
-uint8_t V2;
-uint8_t V3;
-uint8_t V4;
-uint8_t V5;
-uint8_t V6;
-uint8_t V7;
-uint8_t V8;
-uint8_t V9;
-uint8_t VA;
-uint8_t VB;
-uint8_t VC;
-uint8_t VD;
-uint8_t VE;
-uint8_t VF;
+// 16 8-bit (one byte) general-purpose variable registers 
+uint8_t V0 = 0; 
+uint8_t V1 = 0;
+uint8_t V2 = 0;
+uint8_t V3 = 0;
+uint8_t V4 = 0;
+uint8_t V5 = 0;
+uint8_t V6 = 0;
+uint8_t V7 = 0;
+uint8_t V8 = 0;
+uint8_t V9 = 0;
+uint8_t VA = 0;
+uint8_t VB = 0;
+uint8_t VC = 0;
+uint8_t VD = 0;
+uint8_t VE = 0;
+uint8_t VF = 0;
 
 
 // FONT
@@ -110,6 +107,8 @@ void decrementTimers() {
 		delayTimer--;
 	}
 	if (soundTimer > 0) {
+		//TODO: play sound
+		
 		soundTimer--;
 	}
 }
@@ -143,12 +142,12 @@ void clearScreen() {
 // Fetch the instruction from memory at the current programCounter (program
 // counter)
 const uint16_t fetch() {
-	uint8_t d1 = *memory[programCounter];
+	uint8_t byte1 = *memory[programCounter];
 	programCounter++;
-	uint8_t d2 = *memory[programCounter];
+	uint8_t byte2 = *memory[programCounter];
 	programCounter++;
-	uint16_t wd = (d2 << 8) | d1; //bitshift 8 and bitwise OR 
-	return wd;
+	uint16_t word = (byte1 << 8) | byte2; //bitshift 8 and bitwise OR 
+	return word;
 }
 
 
@@ -299,14 +298,8 @@ void overwriteRegister(uint8_t name, uint8_t newValue) {
 }
 
 
-// Decode the instruction to find out what the emulator should do
+// Decode (and Execute) a single instruction
 void decode(const uint16_t& instruction) {
-	// X: The second nibble. Used to look up one of the 16 registers (VX) from V0 through VF.
-	// Y: The third nibble. Also used to look up one of the 16 registers (VY) from V0 through VF.
-	// N: The fourth nibble. A 4-bit number.
-	// NN: The second byte (third and fourth nibbles). An 8-bit immediate number.
-	// NNN: The second, third and fourth nibbles. A 12-bit immediate memory address.
-	
 	uint8_t firstNibble 	= instruction & 0xF000;
 	uint8_t	secondNibble	= instruction & 0x0F00; 
 	uint8_t	thirdNibble		= instruction & 0x00F0;
@@ -371,7 +364,7 @@ void decode(const uint16_t& instruction) {
 			break;
 		} 
 		case 0x8: {
-
+			//TODO: 
 			break;
 		} 
 		case 0x9: {
@@ -405,34 +398,119 @@ void decode(const uint16_t& instruction) {
 			// Draw an N pixels tall sprite from the memory location that
 			// the I index register is holding to the screen, at the
 			// horizontal X coordinate in VX and the Y coordinate in VY
-      
-			// uint8_t X = readRegister(secondNibble) & 63;
-      // uint8_t Y = readRegister(thirdNibble) & 31;
-			// VF = 0;
-			// for (int i = 0; i < fourthNibble; i++) {
-			// 	uint8_t spriteData = *memory[register_I + i];
-			// 	for (int j = 0; j < 8; j++) {
-			// 		if (spriteData & 0x01){
-			// 			if (display[Y][X]) {
-			// 				display[Y][X] = false;
-			// 				VF = 1;
-			// 			} else {
-			// 				display[Y][X] = true;
-			// 			}
-			// 		}	
-			// 		spriteData = spriteData >> 1;
-			// 	}
-			// }
+     
 
-
+			// Display the sprite at (X, Y) with N pixels height
+			uint8_t x = readRegister(secondNibble) & 63;
+			uint8_t y = readRegister(thirdNibble) & 31;
+			VF = 0;
+			
+			for (int i = 0; i < fourthNibble; i++) {
+			  uint8_t spriteData = *memory[register_I + i];  
+			  for (int j = 0; j < 8; j++) {
+			    // Get each bit from the most significant to least significant
+					uint8_t pixel = (spriteData >> (7 - j)) & 0x01;
+	
+					// Calculate actual screen coordinates with wrapping
+					int posX = (x + j) % DISPLAY_WIDTH;
+					int posY = (y + i) % DISPLAY_HEIGHT;
+	
+					// XOR the pixel onto the display and update VF if there's a collision
+					if (pixel) {
+						if (display[posY][posX]) {
+							VF = 1;
+			      }
+			      display[posY][posX] ^= true;
+			    }
+			  }
+			}
 			break;
 		} 
 		case 0xE: {
-
+			//TODO: once i've figured out how to handle the keypad
+			
+			switch (fourthNibble) {
+				// Since the keypad is hexadecimal, the valid values here are keys 0–F
+				
+				case 0xE: {
+					// EX9E will skip one instruction if the key corresponding to the value in VX is pressed
+					break;
+				}
+				case 0x1: {
+					// EXA1 skips if the key corresponding to the value in VX is not pressed
+					
+					break;
+				}
+			}
 			break;
 		} 
 		case 0xF: {
+			switch(instruction & 0x00FF){
+				case 0x07: {
+					// FX07 sets VX to current value delay timer
+					overwriteRegister(secondNibble, delayTimer);
+					break;
+				}
+				case 0x15: {
+					// FX15 set delay timer to VX
+					delayTimer = readRegister(secondNibble);
+					break;
+				}
+				case 0x18: {
+					// FX18 set sound timer to VX
+					soundTimer = readRegister(secondNibble);
+					break;
+				}
+				case 0x1E: {
+					// FX1E I will get the value in VX added to it.
+					// WARN: ambigiuos instruction
+					// if I "overflows" (> 0FFF), set VF = 1
+					
+					uint16_t newValue = readRegister(secondNibble) + register_I;
+					if (newValue > 0x0FFF) VF = 1;
+					register_I = newValue;
+					
+					break;
+				}
+				case 0x0A: {
+					// TODO: after keyinput is figured out
+					break;
+				}
+				case 0x29: {
+					//TODO: after clarity on wtf is going on with fonts 
+					
+					break;
+				}
+				case 0x33: {
+					//TODO:
 
+ 					// FX33
+ 					// It takes the number in VX (which is
+ 					// one byte, so it can be any number
+ 					// from 0 to 255) and converts it to
+ 					// three decimal digits, storing these
+ 					// digits in memory at the address in
+ 					// the index register I. For example, if
+ 					// VX contains 156 (or 9C in
+ 					// hexadecimal), it would put the number
+ 					// 1 at the address in I, 5 in address I
+ 					// + 1, and 6 in address I + 2.
+
+          break;
+				}
+				case 0x55: {
+					//TODO: 
+					//WARN: Ambiguous instruction!
+					
+					break;
+				}
+				case 0x65: {
+					//TODO: 
+					//WARN: Ambiguous instruction!
+					
+					break;
+				}
+			}
 			break;
 		} 
 	}
@@ -451,8 +529,9 @@ int main() {
 		// Fetch -> Decode -> Execute
 		// const uint16_t instruction = fetch();
 		// decode(instruction);
-		// execute(instruction); // just do in decode-switch
-
+		
+		// should execute hz_timer amount of instructions
+		// increment PC here presumably?
 	}
 
 	CloseWindow();
