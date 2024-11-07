@@ -212,10 +212,9 @@ void clearScreen() {
 // Fetch the instruction from memory at the current programCounter (program
 // counter)
 const uint16_t fetch() {
-	uint8_t byte1 = *memory[programCounter];
 	programCounter++;
-	uint8_t byte2 = *memory[programCounter];
-	programCounter++;
+	uint8_t byte1 = *memory[programCounter * 2];
+	uint8_t byte2 = *memory[programCounter * 2 + 1];
 	uint16_t word = (byte1 << 8) | byte2; //bitshift 8 and bitwise OR 
 	return word;
 }
