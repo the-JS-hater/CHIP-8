@@ -50,6 +50,7 @@ std::stack<uint16_t> stack;
 // second) until it reaches 0
 uint8_t delayTimer = 0;
 
+
 // An 8-bit sound timer which functions like the delay timer, but which also
 // gives off a beeping sound as long as it’s not 0
 uint8_t soundTimer = 0;
@@ -75,7 +76,7 @@ uint8_t VF = 0;
 
 
 // FONT
-const uint8_t FONT_SET[80] = {
+uint8_t FONT_SET[80] = {
 	0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
 	0x20, 0x60, 0x20, 0x20, 0x70, // 1
 	0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -95,11 +96,80 @@ const uint8_t FONT_SET[80] = {
 };
 
 
+void loadFontsIntoMemory() {
+	for (int i = 0; i < 80; i++) {
+		memory[i] = &FONT_SET[i];
+	}
+}
+
+
 // KEYPAD
-// 1 	2 	3 	4
-// Q 	W 	E 	R
-// A 	S 	D 	F
-// Z 	X 	C 	V
+uint8_t keypad[16] = {
+	// 1 	2 	3 	4
+	// Q 	W 	E 	R
+	// A 	S 	D 	F
+	// Z 	X 	C 	V
+	0x0, 0x1, 0x2, 0x3,
+	0x4, 0x5, 0x6, 0x7,
+	0x8, 0x9, 0xA, 0xB,
+	0xC, 0xD, 0xE, 0xF,
+}; 
+
+
+bool checkKeypress(uint8_t key_idx) {
+	switch (key_idx) {
+		case 0x0: {
+			return IsKeyPressed(KEY_ONE);
+		}
+		case 0x1: {
+			return IsKeyPressed(KEY_TWO);
+		}
+		case 0x2: {
+			return IsKeyPressed(KEY_THREE);
+		}
+		case 0x3: {
+			return IsKeyPressed(KEY_FOUR);
+		}
+		case 0x4: {
+			return IsKeyPressed(KEY_Q);
+		}
+		case 0x5: {
+			return IsKeyPressed(KEY_W);
+		}
+		case 0x6: {
+			return IsKeyPressed(KEY_E);
+		}
+		case 0x7: {
+			return IsKeyPressed(KEY_R);
+		}
+		case 0x8: {
+			return IsKeyPressed(KEY_A);
+		}
+		case 0x9: {
+			return IsKeyPressed(KEY_S);
+		}
+		case 0xA: {
+			return IsKeyPressed(KEY_D);
+		}
+		case 0xB: {
+			return IsKeyPressed(KEY_F);
+		}
+		case 0xC: {
+			return IsKeyPressed(KEY_Z);
+		}
+		case 0xD: {
+			return IsKeyPressed(KEY_X);
+		}
+		case 0xE: {
+			return IsKeyPressed(KEY_C);
+		}
+		case 0xF: {
+			return IsKeyPressed(KEY_V);
+		}
+		default: //WARN: should be unreachable
+			return false;
+	}
+}
 
 
 void decrementTimers() {
@@ -398,9 +468,7 @@ void decode(const uint16_t& instruction) {
 			// Draw an N pixels tall sprite from the memory location that
 			// the I index register is holding to the screen, at the
 			// horizontal X coordinate in VX and the Y coordinate in VY
-     
 
-			// Display the sprite at (X, Y) with N pixels height
 			uint8_t x = readRegister(secondNibble) & 63;
 			uint8_t y = readRegister(thirdNibble) & 31;
 			VF = 0;
@@ -427,18 +495,22 @@ void decode(const uint16_t& instruction) {
 			break;
 		} 
 		case 0xE: {
-			//TODO: once i've figured out how to handle the keypad
-			
 			switch (fourthNibble) {
 				// Since the keypad is hexadecimal, the valid values here are keys 0–F
-				
 				case 0xE: {
 					// EX9E will skip one instruction if the key corresponding to the value in VX is pressed
+					uint8_t key_idx = readRegister(secondNibble);
+					if (checkKeypress(key_idx)) {
+						programCounter++;
+					}
 					break;
 				}
 				case 0x1: {
 					// EXA1 skips if the key corresponding to the value in VX is not pressed
-					
+					uint8_t key_idx = readRegister(secondNibble);
+					if (!checkKeypress(key_idx)) {
+						programCounter++;
+					}
 					break;
 				}
 			}
@@ -473,29 +545,30 @@ void decode(const uint16_t& instruction) {
 					break;
 				}
 				case 0x0A: {
-					// TODO: after keyinput is figured out
+					//Make it loop indefinitley untill keypress
+					if (GetKeyPressed() == 0) {
+						programCounter--; 
+					}
 					break;
 				}
 				case 0x29: {
-					//TODO: after clarity on wtf is going on with fonts 
-					
+					// FX29 register I set to the address of the hexadecimal character in VX
+					register_I = readRegister(secondNibble) * 5;	
 					break;
 				}
 				case 0x33: {
-					//TODO:
-
  					// FX33
  					// It takes the number in VX (which is
  					// one byte, so it can be any number
  					// from 0 to 255) and converts it to
  					// three decimal digits, storing these
  					// digits in memory at the address in
- 					// the index register I. For example, if
- 					// VX contains 156 (or 9C in
- 					// hexadecimal), it would put the number
- 					// 1 at the address in I, 5 in address I
- 					// + 1, and 6 in address I + 2.
-
+ 					// the index register I. 
+					
+					uint8_t num = readRegister(secondNibble);
+					*memory[register_I] = (num - num % 100) / 100;
+					*memory[register_I + 1] = (num % 100 - num % 10) / 10;
+					*memory[register_I + 2] = num % 10;
           break;
 				}
 				case 0x55: {
@@ -518,6 +591,9 @@ void decode(const uint16_t& instruction) {
 
 
 int main() {
+
+	loadFontsIntoMemory();
+
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CHIP-8 EMULATOR");
 	SetTargetFPS(FRAMERATE);
 	
