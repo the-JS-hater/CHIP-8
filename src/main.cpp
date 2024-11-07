@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <raylib.h>
@@ -589,14 +590,36 @@ void decode(const uint16_t& instruction) {
 }
 
 
-int main() {
+int main(int argc, char** argv) {
+	
+	//TODO: make a separate function to load ROM
+	char* fileName = argv[1];
+	FILE* filePtr;
+	uint8_t* fileBuffer;
+	long fileLen;
+	filePtr = fopen(argv[1], "rb");
+ 	fseek(filePtr, 0, SEEK_END);          
+  fileLen = ftell(filePtr);            
+  rewind(filePtr);      
+
+	fread(fileBuffer, sizeof(uint8_t), fileLen, filePtr);
+	
+
+	//TODO: THIS CURRENTLY SEGFAULTS BUT IM TIRED
+	for (int i = 0; i < fileLen; i++) {
+		memory[i + 0x200] = &fileBuffer[i];
+	}
+
+
 
 	loadFontsIntoMemory();
-
+  // TODO: make a function for initializing/setting all standard values
+  // for registers, PC, and such...
+  
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CHIP-8 EMULATOR");
 	SetTargetFPS(FRAMERATE);
-	
 	srand(time(NULL)); // set random seed using time
+	
 	while(!WindowShouldClose()) {
 		decrementTimers();
 		updateDisplay();
