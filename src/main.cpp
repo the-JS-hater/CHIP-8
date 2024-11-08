@@ -13,6 +13,8 @@ const int SCREEN_HEIGHT = DISPLAY_HEIGHT * PIXEL_SIZE;
 const int FRAMERATE = 60; // ideal for decrementing sound-/delayTimer:s
 const int INSTRUCTIONS_PER_FRAME = 700 / 60; // controll instructions executed per second
 
+/*OPTION FLAGS FOR AMBIGOUS INSTRUCTIONS*/
+const bool SHIFT_IN_PLACE_FLAG = false; // shift VX in place in 8XY6 & 8XYE 
 
 uint8_t memory[4096];
 uint16_t programCounter; 
@@ -445,33 +447,75 @@ void decode(const uint16_t& instruction) {
 					break;
 				}
 				case 0x5: {
+					// 8XY5 VX = VX - VY
+					uint8_t vx = readRegister(secondNibble);
+					uint8_t vy = readRegister(thirdNibble);
+					overwriteRegister(secondNibble, vx - vy);
+					VF = vx > vy ? 1 : 0;
 					break;
 				}
 				case 0x6: {
+					//WARN: Ambiguous instruction!
+					
+					// (optional) Set VX to the value of VY
+					// Shift the value of VX one bit to the right
+					// Set VF to 1 if the bit that was shifted out was 1, or 0 if it was 0
+					if (!SHIFT_IN_PLACE_FLAG) {
+						overwriteRegister(secondNibble, readRegister(thirdNibble));
+					}
+
+					const uint8_t msb_VX = (readRegister(secondNibble) >> 7) & 1;
+					VF = (msb_VX == 1) ? 1 : 0;
+					
+					overwriteRegister(secondNibble, readRegister(secondNibble) << 1);
 					break;
-				}
+        }
 				case 0x7: {
+					// 8XY7 VX = VY - VX
+					uint8_t vx = readRegister(secondNibble);
+					uint8_t vy = readRegister(thirdNibble);
+					overwriteRegister(secondNibble, vy - vx);
+					VF = vy > vx ? 1 : 0;
 					break;
 				}
-				case 0x8: {
-					break;
-				}
-				case 0x9: {
-					break;
-				}
-				case 0xA: {
-					break;
-				}
-				case 0xB: {
-					break;
-				}
-				case 0xC: {
-					break;
-				}
-				case 0xD: {
-					break;
-				}
+//				case 0x8: {
+//					
+//					break;
+//				}
+//				case 0x9: {
+//					
+//					break;
+//				}
+//				case 0xA: {
+//					
+//					break;
+//				}
+//				case 0xB: {
+//					
+//					break;
+//				}
+//				case 0xC: {
+//					
+//					break;
+//				}
+//				case 0xD: {
+//					
+//					break;
+//				}
 				case 0xE: {
+					//WARN: Ambiguous instruction!
+					
+					// Optional, or configurable) Set VX to the value of VY
+					// Shift the value of VX one bit to the left
+					// Set VF to 1 if the bit that was shifted out was 1, or 0 if it was 0
+					if (!SHIFT_IN_PLACE_FLAG) {
+						overwriteRegister(secondNibble, readRegister(thirdNibble));
+					}
+
+					const uint8_t lsb_VX = (readRegister(secondNibble) & 1);
+					VF = (lsb_VX == 1) ? 1 : 0;
+					
+					overwriteRegister(secondNibble, readRegister(secondNibble) << 1);
 					break;
 				}
 			}
@@ -671,9 +715,7 @@ int main(int argc, char** argv) {
 		for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++){
 			// printf("PC: %d\n", programCounter);
 			// printf("Stack size: %d\n", (int)stack.size());
-			const uint16_t instruction = fetch();
-			// printf("OPCODE: %d\n", instruction);
-			decode(instruction);
+			decode(fetch());
 		}
 
 		updateDisplay();
