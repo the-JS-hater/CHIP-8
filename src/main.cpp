@@ -594,22 +594,25 @@ int main(int argc, char** argv) {
 	
 	//TODO: make a separate function to load ROM
 	char* fileName = argv[1];
-	FILE* filePtr;
-	uint8_t* fileBuffer;
-	long fileLen;
-	filePtr = fopen(argv[1], "rb");
- 	fseek(filePtr, 0, SEEK_END);          
-  fileLen = ftell(filePtr);            
+	FILE* filePtr = fopen(argv[1], "rb");
+ 	
+	fseek(filePtr, 0, SEEK_END);          
+  long fileLen = ftell(filePtr);            
   rewind(filePtr);      
 
+	uint8_t* fileBuffer = (uint8_t*) malloc(sizeof(uint8_t) * fileLen);
+	
+	printf("hello?\n");
+	
 	fread(fileBuffer, sizeof(uint8_t), fileLen, filePtr);
 	
-
-	//TODO: THIS CURRENTLY SEGFAULTS BUT IM TIRED
+	printf("about to start reading\n");
+	
 	for (int i = 0; i < fileLen; i++) {
+		printf("index: %d\n", i);
+		printf("data: %s\n", &fileBuffer[i]);
 		memory[i + 0x200] = &fileBuffer[i];
 	}
-
 
 
 	loadFontsIntoMemory();
