@@ -168,6 +168,7 @@ void updateDisplay() {
 	BeginDrawing();
 	ClearBackground(BLACK);
 	
+	printf("Updating display\n");
 	for (int y = 0; y < DISPLAY_HEIGHT; y++) {
 		for (int x = 0; x < DISPLAY_WIDTH; x++) {
 			if (display[y][x]) {
@@ -175,12 +176,12 @@ void updateDisplay() {
 			}
 		}
 	}
-
 	EndDrawing();
 }
 
 
 void clearScreen() {
+	printf("Clearing the screen\n");
 	for (int y = 0; y < DISPLAY_HEIGHT; y++) {
 		for (int x = 0; x < DISPLAY_WIDTH; x++) {
 			display[y][x] = false;
@@ -192,9 +193,13 @@ void clearScreen() {
 // Fetch the instruction from memory at the current programCounter (program
 // counter)
 const uint16_t fetch() {
-	uint8_t byte1 = memory[programCounter * 2];
-	uint8_t byte2 = memory[programCounter * 2 + 1];
-	programCounter++;
+	// if (programCounter % 2 != 0){
+	// 	printf("WARNING: unaligned memory access!\n");
+	// }
+	uint8_t byte1 = memory[programCounter];
+	uint8_t byte2 = memory[programCounter + 1];
+	printf("Fetch\n");
+	programCounter += 2;
 	uint16_t word = (byte1 << 8) | byte2; //bitshift 8 and bitwise OR 
 	return word;
 }
@@ -341,7 +346,7 @@ void overwriteRegister(uint8_t name, uint8_t newValue) {
 			return; 
 		} 
 		default:
-			//WARN: should not be reached
+			printf("UNKNOWN REGISTER V%02X", name);
 			break;
 	}
 }
@@ -349,15 +354,17 @@ void overwriteRegister(uint8_t name, uint8_t newValue) {
 
 // Decode (and Execute) a single instruction
 void decode(const uint16_t& instruction) {
+	printf("Decoding instruction: %04X\n", instruction);
 	uint8_t firstNibble 	= instruction & 0xF000;
 	uint8_t	secondNibble	= instruction & 0x0F00; 
 	uint8_t	thirdNibble		= instruction & 0x00F0;
 	uint8_t	fourthNibble	= instruction & 0x000F;
 	
 	switch (firstNibble) {
-		case 0x0:
+		case 0x0: {
 			switch (instruction) {
-				case 0x00E0: { 
+				case 0x00E0: {
+					printf("Clear screen\n");
 					clearScreen();
 					break;
 				}; 
@@ -369,14 +376,15 @@ void decode(const uint16_t& instruction) {
 				};
 			}
 			break;
+		}
 		case 0x1: { 
-			// 0x1NNN Jump to adress NNN 
+			// 0x1NNN Jump to adress NNN
+			printf("jump");
 			programCounter = instruction & 0x0FFF;
 			break;
 		} 
 		case 0x2: {
 			// 0x2NNN Call subroutine at NNN
-			printf("did i ever get here?");
 			stack.push(programCounter);
 			programCounter = instruction & 0x0FFF;
 			break;
@@ -384,21 +392,21 @@ void decode(const uint16_t& instruction) {
 		case 0x3: {
 			// 3XNN skip one instruction if VX is equal to NN
 			if (readRegister(secondNibble) == (instruction & 0x00FF)) {
-				programCounter++;
+				programCounter += 2;
 			}
 			break;
 		}
 		case 0x4: {
 			// 4XNN skip one instruction if VX is NOT equal to NN
 			if (readRegister(secondNibble) != (instruction & 0x00FF)) {
-				programCounter++;
+				programCounter += 2;
 			}
 			break;
 		} 
 		case 0x5: {
 			// 5XY0 skip one instruction if VX and VY are equal
 			if (readRegister(secondNibble) == readRegister(thirdNibble)) {
-				programCounter++;
+				programCounter += 2;
 			}
 			break;
 		} 
@@ -414,7 +422,6 @@ void decode(const uint16_t& instruction) {
 			break;
 		} 
 		case 0x8: {
-			//TODO:
 			switch (fourthNibble) {
 				case 0x0: {
 					// 8XY0 VX set to VY
@@ -478,30 +485,6 @@ void decode(const uint16_t& instruction) {
 					VF = vy > vx ? 1 : 0;
 					break;
 				}
-//				case 0x8: {
-//					
-//					break;
-//				}
-//				case 0x9: {
-//					
-//					break;
-//				}
-//				case 0xA: {
-//					
-//					break;
-//				}
-//				case 0xB: {
-//					
-//					break;
-//				}
-//				case 0xC: {
-//					
-//					break;
-//				}
-//				case 0xD: {
-//					
-//					break;
-//				}
 				case 0xE: {
 					//WARN: Ambiguous instruction!
 					
@@ -519,13 +502,12 @@ void decode(const uint16_t& instruction) {
 					break;
 				}
 			}
-			printf("unfinished work\n");
 			break;
 		} 
 		case 0x9: {
 			// 9XY0 skip one instruction if VX and VY are NOT equal
 			if (readRegister(secondNibble) != readRegister(thirdNibble)) {
-				programCounter++;
+				programCounter += 2;
 			}
 			break;
 		}
@@ -586,7 +568,7 @@ void decode(const uint16_t& instruction) {
 					// EX9E will skip one instruction if the key corresponding to the value in VX is pressed
 					uint8_t key_idx = readRegister(secondNibble);
 					if (checkKeypress(key_idx)) {
-						programCounter++;
+						programCounter += 2;
 					}
 					break;
 				}
@@ -594,7 +576,7 @@ void decode(const uint16_t& instruction) {
 					// EXA1 skips if the key corresponding to the value in VX is not pressed
 					uint8_t key_idx = readRegister(secondNibble);
 					if (!checkKeypress(key_idx)) {
-						programCounter++;
+						programCounter += 2;
 					}
 					break;
 				}
@@ -632,7 +614,7 @@ void decode(const uint16_t& instruction) {
 				case 0x0A: {
 					//Make it loop indefinitley untill keypress
 					if (GetKeyPressed() == 0) {
-						programCounter--; 
+						programCounter -= 2; 
 					}
 					break;
 				}
@@ -670,14 +652,18 @@ void decode(const uint16_t& instruction) {
 				}
 			}
 			break;
-		} 
+		}
+		default: {
+			printf("UNKNOWN INSTRUCTION: %04X\n", instruction);
+		}
 	}
 }
 
 
 int main(int argc, char** argv) {
-	
-
+		
+	//keep raylib from cluttering the terminal
+	SetTraceLogLevel(LOG_NONE);
   // TODO: make a function for initializing/setting all standard values
   // for registers, PC, and such...
 	for (int i = 0; i < 4096; i++) {
@@ -697,6 +683,7 @@ int main(int argc, char** argv) {
 	fread(fileBuffer, sizeof(uint8_t), fileLen, filePtr);
 	
 	for (int i = 0; i < fileLen; i++) {
+		printf("Data: %02X, loaded into memory idx: %d\n", fileBuffer[i], i + 0x200);
 		memory[i + 0x200] = fileBuffer[i];
 	}
 
@@ -706,16 +693,18 @@ int main(int argc, char** argv) {
 	SetTargetFPS(FRAMERATE);
 	srand(time(NULL)); // set random seed using time
 	
-	programCounter = 256; // 512 / 2
+	programCounter = 0x200;
 	stack.push(programCounter);
 
 	while(!WindowShouldClose()) {
 		decrementTimers();
 
 		for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++){
-			// printf("PC: %d\n", programCounter);
-			// printf("Stack size: %d\n", (int)stack.size());
-			decode(fetch());
+			printf("PC: %d", programCounter);
+			printf(" Stack size: %d\n", (int)stack.size());
+			const uint16_t instruction = fetch();
+			printf("Instruction fetched: %04X\n", instruction);
+			decode(instruction);
 		}
 
 		updateDisplay();
