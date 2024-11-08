@@ -11,51 +11,28 @@ const int DISPLAY_HEIGHT = 32;
 const int SCREEN_WIDTH = DISPLAY_WIDTH * PIXEL_SIZE;
 const int SCREEN_HEIGHT = DISPLAY_HEIGHT * PIXEL_SIZE;
 const int FRAMERATE = 60; // ideal for decrementing sound-/delayTimer:s
-const int HZ_TIMER = 700 * FRAMERATE; // controll instructions executed per second
+const int INSTRUCTIONS_PER_FRAME = 700 / 60; // controll instructions executed per second
 
 
-// Memory: CHIP-8 has direct access to up to 4 kilobytes of RAM
-uint8_t* memory[4096];
-// The first CHIP-8 interpreter (on the COSMAC VIP computer) was also located in
-// RAM, from address 000 to 1FF. It would expect a CHIP-8 program to be loaded
-// into memory after it, starting at address 200 (512 in decimal). Although
-// modern interpreters are not in the same memory space, you should do the same
-// to be able to run the old programs; you can just leave the initial space
-// empty, except for the font.
-
-// Display: 64 x 32 pixels (or 128 x 64 for SUPER-CHIP) monochrome, ie. black or
-// white
+uint8_t memory[4096];
+uint16_t programCounter; 
 bool display[32][64];
-// A program counter, often called just “programCounter”, which points at the
-// current instruction in memory
-//
-// The first CHIP-8 interpreter (on the COSMAC VIP computer) was also located in
-// RAM, from address 000 to 1FF. It would expect a CHIP-8 program to be loaded
-// into memory after it, starting at address 200 (512 in decimal). Although
-// modern interpreters are not in the same memory space, you should do the same
-// to be able to run the old programs; you can just leave the initial space
-// empty, except for the font.
-uint16_t programCounter = 0x200; 
 
 // One 16-bit index register called “I” which is used to point at locations in
 // memory
 uint16_t register_I = 0;
 
-
 // A stack for 16-bit addresses, which is used to call subroutines/functions and
 // return from them
-std::stack<uint16_t> stack;
-
+std::stack<uint16_t> stack; 
 
 // An 8-bit delay timer which is decremented at a rate of 60 Hz (60 times per
 // second) until it reaches 0
 uint8_t delayTimer = 0;
 
-
 // An 8-bit sound timer which functions like the delay timer, but which also
 // gives off a beeping sound as long as it’s not 0
 uint8_t soundTimer = 0;
-
 
 // 16 8-bit (one byte) general-purpose variable registers 
 uint8_t V0 = 0; 
@@ -99,7 +76,7 @@ uint8_t FONT_SET[80] = {
 
 void loadFontsIntoMemory() {
 	for (int i = 0; i < 80; i++) {
-		memory[i] = &FONT_SET[i];
+		memory[i] = FONT_SET[i];
 	}
 }
 
@@ -213,9 +190,9 @@ void clearScreen() {
 // Fetch the instruction from memory at the current programCounter (program
 // counter)
 const uint16_t fetch() {
+	uint8_t byte1 = memory[programCounter * 2];
+	uint8_t byte2 = memory[programCounter * 2 + 1];
 	programCounter++;
-	uint8_t byte1 = *memory[programCounter * 2];
-	uint8_t byte2 = *memory[programCounter * 2 + 1];
 	uint16_t word = (byte1 << 8) | byte2; //bitshift 8 and bitwise OR 
 	return word;
 }
@@ -397,6 +374,7 @@ void decode(const uint16_t& instruction) {
 		} 
 		case 0x2: {
 			// 0x2NNN Call subroutine at NNN
+			printf("did i ever get here?");
 			stack.push(programCounter);
 			programCounter = instruction & 0x0FFF;
 			break;
@@ -404,21 +382,21 @@ void decode(const uint16_t& instruction) {
 		case 0x3: {
 			// 3XNN skip one instruction if VX is equal to NN
 			if (readRegister(secondNibble) == (instruction & 0x00FF)) {
-				programCounter += 2;
+				programCounter++;
 			}
 			break;
 		}
 		case 0x4: {
 			// 4XNN skip one instruction if VX is NOT equal to NN
 			if (readRegister(secondNibble) != (instruction & 0x00FF)) {
-				programCounter += 2;
+				programCounter++;
 			}
 			break;
 		} 
 		case 0x5: {
 			// 5XY0 skip one instruction if VX and VY are equal
 			if (readRegister(secondNibble) == readRegister(thirdNibble)) {
-				programCounter += 2;
+				programCounter++;
 			}
 			break;
 		} 
@@ -434,13 +412,76 @@ void decode(const uint16_t& instruction) {
 			break;
 		} 
 		case 0x8: {
-			//TODO: 
+			//TODO:
+			switch (fourthNibble) {
+				case 0x0: {
+					// 8XY0 VX set to VY
+					overwriteRegister(secondNibble, readRegister(thirdNibble));
+					break;
+				}
+				case 0x1: {
+					// 8XY1 VX |= VY (binary OR compound assignment)
+					uint8_t bitwiseOR = readRegister(secondNibble) | readRegister(thirdNibble);
+					overwriteRegister(secondNibble, bitwiseOR);
+					break;
+				}
+				case 0x2: {
+					// 8XY2 VX &= VY (binary AND compound assignment)
+					uint8_t bitwiseAND = readRegister(secondNibble) & readRegister(thirdNibble);
+					overwriteRegister(secondNibble, bitwiseAND);
+					break;
+				}
+				case 0x3: {
+					// 8XY3: Logical XOR
+					// 8XY3 VX ^= VY (binary XOR compound assignment)
+					uint8_t bitwiseXOR = readRegister(secondNibble) ^ readRegister(thirdNibble);
+					overwriteRegister(secondNibble, bitwiseXOR);
+					break;
+				}
+				case 0x4: {
+					// 8XY4 VX += VY
+					uint8_t sum = readRegister(secondNibble) + readRegister(thirdNibble);
+					overwriteRegister(secondNibble, sum);
+					break;
+				}
+				case 0x5: {
+					break;
+				}
+				case 0x6: {
+					break;
+				}
+				case 0x7: {
+					break;
+				}
+				case 0x8: {
+					break;
+				}
+				case 0x9: {
+					break;
+				}
+				case 0xA: {
+					break;
+				}
+				case 0xB: {
+					break;
+				}
+				case 0xC: {
+					break;
+				}
+				case 0xD: {
+					break;
+				}
+				case 0xE: {
+					break;
+				}
+			}
+			printf("unfinished work\n");
 			break;
 		} 
 		case 0x9: {
 			// 9XY0 skip one instruction if VX and VY are NOT equal
 			if (readRegister(secondNibble) != readRegister(thirdNibble)) {
-				programCounter += 2;
+				programCounter++;
 			}
 			break;
 		}
@@ -474,7 +515,7 @@ void decode(const uint16_t& instruction) {
 			VF = 0;
 			
 			for (int i = 0; i < fourthNibble; i++) {
-			  uint8_t spriteData = *memory[register_I + i];  
+			  uint8_t spriteData = memory[register_I + i];  
 			  for (int j = 0; j < 8; j++) {
 			    // Get each bit from the most significant to least significant
 					uint8_t pixel = (spriteData >> (7 - j)) & 0x01;
@@ -566,9 +607,9 @@ void decode(const uint16_t& instruction) {
  					// the index register I. 
 					
 					uint8_t num = readRegister(secondNibble);
-					*memory[register_I] = (num - num % 100) / 100;
-					*memory[register_I + 1] = (num % 100 - num % 10) / 10;
-					*memory[register_I + 2] = num % 10;
+					memory[register_I] = (num - num % 100) / 100;
+					memory[register_I + 1] = (num % 100 - num % 10) / 10;
+					memory[register_I + 2] = num % 10;
           break;
 				}
 				case 0x55: {
@@ -592,6 +633,13 @@ void decode(const uint16_t& instruction) {
 
 int main(int argc, char** argv) {
 	
+
+  // TODO: make a function for initializing/setting all standard values
+  // for registers, PC, and such...
+	for (int i = 0; i < 4096; i++) {
+		memory[i] = 0x00;
+	}
+
 	//TODO: make a separate function to load ROM
 	char* fileName = argv[1];
 	FILE* filePtr = fopen(argv[1], "rb");
@@ -602,37 +650,33 @@ int main(int argc, char** argv) {
 
 	uint8_t* fileBuffer = (uint8_t*) malloc(sizeof(uint8_t) * fileLen);
 	
-	printf("hello?\n");
-	
 	fread(fileBuffer, sizeof(uint8_t), fileLen, filePtr);
 	
-	printf("about to start reading\n");
-	
 	for (int i = 0; i < fileLen; i++) {
-		printf("index: %d\n", i);
-		printf("data: %s\n", &fileBuffer[i]);
-		memory[i + 0x200] = &fileBuffer[i];
+		memory[i + 0x200] = fileBuffer[i];
 	}
 
-
 	loadFontsIntoMemory();
-  // TODO: make a function for initializing/setting all standard values
-  // for registers, PC, and such...
-  
+
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CHIP-8 EMULATOR");
 	SetTargetFPS(FRAMERATE);
 	srand(time(NULL)); // set random seed using time
 	
+	programCounter = 256; // 512 / 2
+	stack.push(programCounter);
+
 	while(!WindowShouldClose()) {
 		decrementTimers();
+
+		for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++){
+			// printf("PC: %d\n", programCounter);
+			// printf("Stack size: %d\n", (int)stack.size());
+			const uint16_t instruction = fetch();
+			// printf("OPCODE: %d\n", instruction);
+			decode(instruction);
+		}
+
 		updateDisplay();
-		
-		// Fetch -> Decode -> Execute
-		// const uint16_t instruction = fetch();
-		// decode(instruction);
-		
-		// should execute hz_timer amount of instructions
-		// increment PC here presumably?
 	}
 
 	CloseWindow();
