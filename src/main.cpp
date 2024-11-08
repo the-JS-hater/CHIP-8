@@ -355,11 +355,13 @@ void overwriteRegister(uint8_t name, uint8_t newValue) {
 // Decode (and Execute) a single instruction
 void decode(const uint16_t& instruction) {
 	printf("Decoding instruction: %04X\n", instruction);
-	uint8_t firstNibble 	= instruction & 0xF000;
-	uint8_t	secondNibble	= instruction & 0x0F00; 
-	uint8_t	thirdNibble		= instruction & 0x00F0;
-	uint8_t	fourthNibble	= instruction & 0x000F;
+	uint8_t firstNibble  = (instruction & 0xF000) >> 12;
+	uint8_t secondNibble = (instruction & 0x0F00) >> 8;
+	uint8_t thirdNibble  = (instruction & 0x00F0) >> 4;
+	uint8_t fourthNibble = instruction & 0x000F;
 	
+	printf("1st, 2nd, 3rd and 4th nibbles: %01X, %01X, %01X, %01X \n", firstNibble, secondNibble, thirdNibble, fourthNibble);
+
 	switch (firstNibble) {
 		case 0x0: {
 			switch (instruction) {
@@ -379,7 +381,6 @@ void decode(const uint16_t& instruction) {
 		}
 		case 0x1: { 
 			// 0x1NNN Jump to adress NNN
-			printf("jump");
 			programCounter = instruction & 0x0FFF;
 			break;
 		} 
