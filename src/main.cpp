@@ -4,7 +4,7 @@
 #include <raylib.h>
 #include <math.h>
 #include <cstdint>
-#include <stack>
+#include "../include/memory.h"
 
 const int SAMPLE_RATE = 44100;  // Sound sample rate
 const float FREQUENCY = 440.0f; // Frequency of the beep (A4 note)
@@ -21,71 +21,11 @@ const int INSTRUCTIONS_PER_FRAME = 700 / 60; // controll instructions executed p
 /*OPTION FLAGS FOR AMBIGOUS INSTRUCTIONS*/
 const bool SHIFT_IN_PLACE_FLAG = true; // shift VX in place in 8XY6 & 8XYE 
 
-uint8_t memory[4096];
-uint16_t programCounter; 
 bool display[32][64];
 
-// One 16-bit index register called “I” which is used to point at locations in
-// memory
-uint16_t register_I = 0;
-
-// A stack for 16-bit addresses, which is used to call subroutines/functions and
-// return from them
-std::stack<uint16_t> stack; 
-
-// An 8-bit delay timer which is decremented at a rate of 60 Hz (60 times per
-// second) until it reaches 0
 uint8_t delayTimer = 0;
 
-// An 8-bit sound timer which functions like the delay timer, but which also
-// gives off a beeping sound as long as it’s not 0
 uint8_t soundTimer = 0;
-
-// 16 8-bit (one byte) general-purpose variable registers 
-uint8_t V0 = 0; 
-uint8_t V1 = 0;
-uint8_t V2 = 0;
-uint8_t V3 = 0;
-uint8_t V4 = 0;
-uint8_t V5 = 0;
-uint8_t V6 = 0;
-uint8_t V7 = 0;
-uint8_t V8 = 0;
-uint8_t V9 = 0;
-uint8_t VA = 0;
-uint8_t VB = 0;
-uint8_t VC = 0;
-uint8_t VD = 0;
-uint8_t VE = 0;
-uint8_t VF = 0;
-
-
-// FONT
-uint8_t FONT_SET[80] = {
-	0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-	0x20, 0x60, 0x20, 0x20, 0x70, // 1
-	0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-	0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-	0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-	0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-	0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-	0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-	0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-	0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-	0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-	0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-	0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-	0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-	0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
-};
-
-
-void loadFontsIntoMemory() {
-	for (int i = 0; i < 80; i++) {
-		memory[i] = FONT_SET[i];
-	}
-}
 
 
 // KEYPAD
@@ -194,165 +134,8 @@ void clearScreen() {
 }
 
 
-// Fetch the instruction from memory at the current programCounter (program
-// counter)
-const uint16_t fetch() {
-	// if (programCounter % 2 != 0){
-	// 	printf("WARNING: unaligned memory access!\n");
-	// }
-	uint8_t byte1 = memory[programCounter];
-	uint8_t byte2 = memory[programCounter + 1];
-	programCounter += 2;
-	uint16_t word = (byte1 << 8) | byte2; //bitshift 8 and bitwise OR 
-	return word;
-}
 
 
-const uint8_t readRegister(uint8_t name) {
-	switch (name) {
-		case 0x0: {
-			return V0; 
-			break;
-		} 
-		case 0x1: {
-			return V1; 
-			break;
-		} 
-		case 0x2: {
-			return V2; 
-			break;
-		} 
-		case 0x3: {
-			return V3; 
-			break;
-		} 
-		case 0x4: {
-			return V4; 
-			break;
-		} 
-		case 0x5: {
-			return V5; 
-			break;
-		} 
-		case 0x6: {
-			return V6; 
-			break;
-		} 
-		case 0x7: {
-			return V7; 
-			break;
-		} 
-		case 0x8: {
-			return V8; 
-			break;
-		} 
-		case 0x9: {
-			return V9; 
-			break;
-		} 
-		case 0xA: {
-			return VA; 
-			break;
-		} 
-		case 0xB: {
-			return VB; 
-			break;
-		} 
-		case 0xC: {
-			return VC; 
-			break;
-		} 
-		case 0xD: {
-			return VD; 
-			break;
-		} 
-		case 0xE: {
-			return VE; 
-			break;
-		} 
-		case 0xF: {
-			return VF; 
-			break;
-		} 
-		default:
-			//WARN: should not be reached
-			return -1;
-			break;
-	}
-}
-
-
-void overwriteRegister(uint8_t name, uint8_t newValue) {
-	switch (name) {
-		case 0x0: {
-			V0 = newValue;
-			return; 
-		} 
-		case 0x1: {
-			V1 = newValue;
-			return; 
-		} 
-		case 0x2: {
-			V2 = newValue;
-			return; 
-		} 
-		case 0x3: {
-			V3 = newValue;
-			return; 
-		} 
-		case 0x4: {
-			V4 = newValue;
-			return; 
-		} 
-		case 0x5: {
-			V5 = newValue;
-			return; 
-		} 
-		case 0x6: {
-			V6 = newValue;
-			return; 
-		} 
-		case 0x7: {
-			V7 = newValue;
-			return; 
-		} 
-		case 0x8: {
-			V8 = newValue;
-			return; 
-		} 
-		case 0x9: {
-			V9 = newValue;
-			return; 
-		} 
-		case 0xA: {
-			VA = newValue;
-			return; 
-		} 
-		case 0xB: {
-			VB = newValue;
-			return; 
-		} 
-		case 0xC: {
-			VC = newValue;
-			return; 
-		} 
-		case 0xD: {
-			VD = newValue;
-			return; 
-		} 
-		case 0xE: {
-			VE = newValue;
-			return; 
-		} 
-		case 0xF: {
-			VF = newValue;
-			return; 
-		} 
-		default:
-			printf("UNKNOWN REGISTER V%02X", name);
-			break;
-	}
-}
 
 
 // Decode (and Execute) a single instruction
@@ -373,8 +156,7 @@ void decode(const uint16_t& instruction) {
 				}; 
 				case 0x00EE: {
 					//Returning from subroutine
-					programCounter = stack.top();
-					stack.pop();
+					returnFromSubroutine();
 					break;
 				};
 			}
@@ -382,19 +164,18 @@ void decode(const uint16_t& instruction) {
 		}
 		case 0x1: { 
 			// 0x1NNN Jump to adress NNN
-			programCounter = instruction & 0x0FFF;
+			setPC(instruction & 0x0FFF);
 			break;
 		} 
 		case 0x2: {
 			// 0x2NNN Call subroutine at NNN
-			stack.push(programCounter);
-			programCounter = instruction & 0x0FFF;
+			callSubroutine(instruction & 0x0FFF);
 			break;
 		}
 		case 0x3: {
 			// 3XNN skip one instruction if VX is equal to NN
 			if (readRegister(secondNibble) == (instruction & 0x00FF)) {
-				programCounter += 2;
+				skipInstruction();
 			}
 			break;
 		}
@@ -402,14 +183,14 @@ void decode(const uint16_t& instruction) {
 			// 4XNN skip one instruction if VX is NOT equal to NN
 			printf("comparing VX: %d and NN: %04X\n", readRegister(secondNibble), (instruction & 0x00FF));
 			if (readRegister(secondNibble) != (instruction & 0x00FF)) {
-				programCounter += 2;
+				skipInstruction();
 			}
 			break;
 		} 
 		case 0x5: {
 			// 5XY0 skip one instruction if VX and VY are equal
 			if (readRegister(secondNibble) == readRegister(thirdNibble)) {
-				programCounter += 2;
+				skipInstruction();
 			}
 			break;
 		} 
@@ -461,7 +242,8 @@ void decode(const uint16_t& instruction) {
 					uint8_t vx = readRegister(secondNibble);
 					uint8_t vy = readRegister(thirdNibble);
 					overwriteRegister(secondNibble, vx - vy);
-					VF = vx > vy ? 1 : 0;
+					uint8_t vf = vx > vy ? 1 : 0;
+					overwriteRegister(0xF, vf);
 					break;
 				}
 				case 0x6: {
@@ -475,8 +257,8 @@ void decode(const uint16_t& instruction) {
 					}
 
 					const uint8_t msb_VX = (readRegister(secondNibble) >> 7) & 1;
-					VF = (msb_VX == 1) ? 1 : 0;
-					
+					uint8_t vf = (msb_VX == 1) ? 1 : 0;
+					overwriteRegister(0xF, vf);
 					overwriteRegister(secondNibble, readRegister(secondNibble) << 1);
 					break;
         }
@@ -485,7 +267,8 @@ void decode(const uint16_t& instruction) {
 					uint8_t vx = readRegister(secondNibble);
 					uint8_t vy = readRegister(thirdNibble);
 					overwriteRegister(secondNibble, vy - vx);
-					VF = vy > vx ? 1 : 0;
+					uint8_t vf = vy > vx ? 1 : 0;
+					overwriteRegister(0xF, vf);
 					break;
 				}
 				case 0xE: {
@@ -499,8 +282,8 @@ void decode(const uint16_t& instruction) {
 					}
 
 					const uint8_t lsb_VX = (readRegister(secondNibble) & 1);
-					VF = (lsb_VX == 1) ? 1 : 0;
-					
+					uint8_t vf = (lsb_VX == 1) ? 1 : 0;
+					overwriteRegister(0xF, vf);
 					overwriteRegister(secondNibble, readRegister(secondNibble) << 1);
 					break;
 				}
@@ -510,20 +293,20 @@ void decode(const uint16_t& instruction) {
 		case 0x9: {
 			// 9XY0 skip one instruction if VX and VY are NOT equal
 			if (readRegister(secondNibble) != readRegister(thirdNibble)) {
-				programCounter += 2;
+				skipInstruction();
 			}
 			break;
 		}
 		case 0xA: {
 			// ANNN sets register I NNN
-			register_I = instruction & 0x0FFF;
+			setRegisterI(instruction & 0x0FFF);
 			break;
 		} 
 		case 0xB: {
 			// BNNN Jump with offset
 			// jump to the address V0 + NNN  
 			// WARN: Ambiguous instruction!
-			programCounter = readRegister(0x0) + (instruction & 0x0FFF);
+			setPC(readRegister(0x0) + (instruction & 0x0FFF));
 			break;
 		} 
 		case 0xC: {
@@ -543,10 +326,10 @@ void decode(const uint16_t& instruction) {
 
 			uint8_t x = readRegister(secondNibble) & 63;
 			uint8_t y = readRegister(thirdNibble) & 31;
-			VF = 0;
-			
+			overwriteRegister(0xF, 0);
+
 			for (int i = 0; i < fourthNibble; i++) {
-			  uint8_t spriteData = memory[register_I + i];  
+			  uint8_t spriteData = readMemory(readRegisterI() + i);
 			  for (int j = 0; j < 8; j++) {
 			    // Get each bit from the most significant to least significant
 					uint8_t pixel = (spriteData >> (7 - j)) & 0x01;
@@ -558,7 +341,7 @@ void decode(const uint16_t& instruction) {
 					// XOR the pixel onto the display and update VF if there's a collision
 					if (pixel) {
 						if (display[posY][posX]) {
-							VF = 1;
+							overwriteRegister(0xF, 1);
 			      }
 			      display[posY][posX] ^= true;
 			    }
@@ -573,7 +356,7 @@ void decode(const uint16_t& instruction) {
 					// EX9E will skip one instruction if the key corresponding to the value in VX is pressed
 					uint8_t key_idx = readRegister(secondNibble);
 					if (checkKeypress(key_idx)) {
-						programCounter += 2;
+						skipInstruction();
 					}
 					break;
 				}
@@ -581,7 +364,7 @@ void decode(const uint16_t& instruction) {
 					// EXA1 skips if the key corresponding to the value in VX is not pressed
 					uint8_t key_idx = readRegister(secondNibble);
 					if (!checkKeypress(key_idx)) {
-						programCounter += 2;
+						skipInstruction();
 					}
 					break;
 				}
@@ -610,22 +393,24 @@ void decode(const uint16_t& instruction) {
 					// WARN: ambigiuos instruction
 					// if I "overflows" (> 0FFF), set VF = 1
 					
-					uint16_t newValue = readRegister(secondNibble) + register_I;
-					if (newValue > 0x0FFF) VF = 1;
-					register_I = newValue;
-					
+					uint16_t newValue = readRegister(secondNibble) + readRegisterI(); 
+					if (newValue > 0x0FFF) {
+						overwriteRegister(0xF, 1);
+					} 
+
+					setRegisterI(newValue);
 					break;
 				}
 				case 0x0A: {
 					//Make it loop indefinitley untill keypress
 					if (GetKeyPressed() == 0) {
-						programCounter -= 2; 
+						skipInstruction();
 					}
 					break;
 				}
 				case 0x29: {
 					// FX29 register I set to the address of the hexadecimal character in VX
-					register_I = readRegister(secondNibble) * 5;	
+					setRegisterI(readRegister(secondNibble) * 5);
 					break;
 				}
 				case 0x33: {
@@ -638,9 +423,11 @@ void decode(const uint16_t& instruction) {
  					// the index register I. 
 					
 					uint8_t num = readRegister(secondNibble);
-					memory[register_I] = (num - num % 100) / 100;
-					memory[register_I + 1] = (num % 100 - num % 10) / 10;
-					memory[register_I + 2] = num % 10;
+					uint16_t I_idx = readRegisterI();
+					
+					overwriteMemory(I_idx, (num - num % 100) / 100);
+					overwriteMemory(I_idx + 1, (num % 100 - num % 10) / 10);
+					overwriteMemory(I_idx + 2, num % 10);
           break;
 				}
 				case 0x55: {
@@ -666,32 +453,19 @@ void decode(const uint16_t& instruction) {
 
 
 int main(int argc, char** argv) {
-		
 	//keep raylib from cluttering the terminal
 	SetTraceLogLevel(LOG_NONE);
-  // TODO: make a function for initializing/setting all standard values
-  // for registers, PC, and such...
-	for (int i = 0; i < 4096; i++) {
-		memory[i] = 0x00;
-	}
-
-	//TODO: make a separate function to load ROM
-	char* fileName = argv[1];
-	FILE* filePtr = fopen(argv[1], "rb");
- 	
-	fseek(filePtr, 0, SEEK_END);          
-  long fileLen = ftell(filePtr);            
-  rewind(filePtr);      
-
-	uint8_t* fileBuffer = (uint8_t*) malloc(sizeof(uint8_t) * fileLen);
-	
-	fread(fileBuffer, sizeof(uint8_t), fileLen, filePtr);
-	
-	for (int i = 0; i < fileLen; i++) {
-		printf("Data: %02X, loaded into memory idx: %d\n", fileBuffer[i], i + 0x200);
-		memory[i + 0x200] = fileBuffer[i];
-	}
+  
+	//set all registers and memory addresses to 0
+	//set PC to 0x200 and push it onto stack
+	initilizeMemory();
+	//load font data into first 80 addresses
 	loadFontsIntoMemory();
+
+	char* fileName = argv[1];
+  	// load rom data into memeory, starting at adress 0x200
+  loadRomIntoMemory(fileName);
+
 
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CHIP-8 EMULATOR");
 	SetTargetFPS(FRAMERATE);
@@ -717,18 +491,11 @@ int main(int argc, char** argv) {
 
   Sound beepSound = LoadSoundFromWave(wave);
 
-
-	programCounter = 0x200;
-	stack.push(programCounter);
-
 	while(!WindowShouldClose()) {
 		decrementTimers(beepSound);
 
 		for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++){
-			printf("PC: %d", programCounter);
-			printf(" Stack size: %d\n", (int)stack.size());
 			const uint16_t instruction = fetch();
-			printf("Instruction fetched: %04X\n", instruction);
 			decode(instruction);
 		}
 
