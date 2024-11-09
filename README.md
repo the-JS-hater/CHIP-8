@@ -12,6 +12,7 @@ Atleast on any reasonable Linux machine.
 
 # HELPFUL RESOURCES
 - https://tobiasvl.github.io/blog/write-a-chip-8-emulator/
+- https://www.raylib.com/
 # ROM SOURCES
 - https://github.com/NinjaWeedle/chip8-test-rom-with-audio
 - https://github.com/kripod/chip8-roms/tree/master/games
