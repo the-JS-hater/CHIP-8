@@ -2,8 +2,13 @@
 #include <stdlib.h>
 #include <time.h>
 #include <raylib.h>
+#include <math.h>
 #include <cstdint>
 #include <stack>
+
+const int SAMPLE_RATE = 44100;  // Sound sample rate
+const float FREQUENCY = 440.0f; // Frequency of the beep (A4 note)
+const float DURATION = 1.0f/60.0f;   // Duration of the beep in seconds
 
 const int PIXEL_SIZE = 16;
 const int DISPLAY_WIDTH = 64;
@@ -14,7 +19,7 @@ const int FRAMERATE = 60; // ideal for decrementing sound-/delayTimer:s
 const int INSTRUCTIONS_PER_FRAME = 700 / 60; // controll instructions executed per second
 
 /*OPTION FLAGS FOR AMBIGOUS INSTRUCTIONS*/
-const bool SHIFT_IN_PLACE_FLAG = false; // shift VX in place in 8XY6 & 8XYE 
+const bool SHIFT_IN_PLACE_FLAG = true; // shift VX in place in 8XY6 & 8XYE 
 
 uint8_t memory[4096];
 uint16_t programCounter; 
@@ -152,13 +157,12 @@ bool checkKeypress(uint8_t key_idx) {
 }
 
 
-void decrementTimers() {
+void decrementTimers(Sound beep) {
 	if (delayTimer > 0) {
 		delayTimer--;
 	}
 	if (soundTimer > 0) {
-		//TODO: play sound
-		
+		PlaySound(beep);
 		soundTimer--;
 	}
 }
@@ -198,7 +202,6 @@ const uint16_t fetch() {
 	// }
 	uint8_t byte1 = memory[programCounter];
 	uint8_t byte2 = memory[programCounter + 1];
-	printf("Fetch\n");
 	programCounter += 2;
 	uint16_t word = (byte1 << 8) | byte2; //bitshift 8 and bitwise OR 
 	return word;
@@ -359,8 +362,6 @@ void decode(const uint16_t& instruction) {
 	uint8_t secondNibble = (instruction & 0x0F00) >> 8;
 	uint8_t thirdNibble  = (instruction & 0x00F0) >> 4;
 	uint8_t fourthNibble = instruction & 0x000F;
-	
-	printf("1st, 2nd, 3rd and 4th nibbles: %01X, %01X, %01X, %01X \n", firstNibble, secondNibble, thirdNibble, fourthNibble);
 
 	switch (firstNibble) {
 		case 0x0: {
@@ -399,6 +400,7 @@ void decode(const uint16_t& instruction) {
 		}
 		case 0x4: {
 			// 4XNN skip one instruction if VX is NOT equal to NN
+			printf("comparing VX: %d and NN: %04X\n", readRegister(secondNibble), (instruction & 0x00FF));
 			if (readRegister(secondNibble) != (instruction & 0x00FF)) {
 				programCounter += 2;
 			}
@@ -527,8 +529,10 @@ void decode(const uint16_t& instruction) {
 		case 0xC: {
 			// CXNN
 			// generate a random number, binary AND it with the value NN, and puts the result in VX
-			uint8_t rand8bit = rand()%256;
-			overwriteRegister(secondNibble, instruction & 0x00FF);
+			uint8_t rand8bit = rand() % 256;
+			uint8_t nn = instruction & 0x00FF;
+			printf("random num: %d\n", rand8bit);
+			overwriteRegister(secondNibble, rand8bit & nn);
 			break;
 		} 
 		case 0xD: {
@@ -687,18 +691,38 @@ int main(int argc, char** argv) {
 		printf("Data: %02X, loaded into memory idx: %d\n", fileBuffer[i], i + 0x200);
 		memory[i + 0x200] = fileBuffer[i];
 	}
-
 	loadFontsIntoMemory();
 
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CHIP-8 EMULATOR");
 	SetTargetFPS(FRAMERATE);
 	srand(time(NULL)); // set random seed using time
 	
+
+	//TODO: move all this audio stuff into separate function 
+	InitAudioDevice();  // Initialize audio device and context
+	// Generate sine wave sample data for a beep
+    unsigned int sampleCount = (unsigned int)(SAMPLE_RATE * DURATION);
+    short *data = (short *)malloc(sampleCount * sizeof(short));
+    for (int i = 0; i < sampleCount; i++) {
+        data[i] = (short)(32767 * sinf(2 * PI * FREQUENCY * i / SAMPLE_RATE));
+    }
+
+  Wave wave = {
+		sampleCount,
+		SAMPLE_RATE,
+		16,
+		1,
+    data
+  };
+
+  Sound beepSound = LoadSoundFromWave(wave);
+
+
 	programCounter = 0x200;
 	stack.push(programCounter);
 
 	while(!WindowShouldClose()) {
-		decrementTimers();
+		decrementTimers(beepSound);
 
 		for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++){
 			printf("PC: %d", programCounter);
