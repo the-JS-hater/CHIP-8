@@ -6,6 +6,7 @@
 #include <cstdint>
 #include "../include/memory.h"
 #include "../include/display.h"
+#include "../include/keypad.h"
 
 
 const int SAMPLE_RATE = 44100;  // Sound sample rate
@@ -17,80 +18,10 @@ const int INSTRUCTIONS_PER_FRAME = 700 / 60; // controll instructions executed p
 
 /*OPTION FLAGS FOR AMBIGOUS INSTRUCTIONS*/
 const bool SHIFT_IN_PLACE_FLAG = true; // shift VX in place in 8XY6 & 8XYE 
-
+const bool MEMORY_ACCESS_SIDE_EFFECT_FLAG = false; // if true, store/load memory (FX55 and FX65) will modify I register
 
 uint8_t delayTimer = 0;
-
 uint8_t soundTimer = 0;
-
-
-// KEYPAD
-uint8_t keypad[16] = {
-	// 1 	2 	3 	4
-	// Q 	W 	E 	R
-	// A 	S 	D 	F
-	// Z 	X 	C 	V
-	0x0, 0x1, 0x2, 0x3,
-	0x4, 0x5, 0x6, 0x7,
-	0x8, 0x9, 0xA, 0xB,
-	0xC, 0xD, 0xE, 0xF,
-}; 
-
-
-bool checkKeypress(uint8_t key_idx) {
-	switch (key_idx) {
-		case 0x0: {
-			return IsKeyPressed(KEY_ONE);
-		}
-		case 0x1: {
-			return IsKeyPressed(KEY_TWO);
-		}
-		case 0x2: {
-			return IsKeyPressed(KEY_THREE);
-		}
-		case 0x3: {
-			return IsKeyPressed(KEY_FOUR);
-		}
-		case 0x4: {
-			return IsKeyPressed(KEY_Q);
-		}
-		case 0x5: {
-			return IsKeyPressed(KEY_W);
-		}
-		case 0x6: {
-			return IsKeyPressed(KEY_E);
-		}
-		case 0x7: {
-			return IsKeyPressed(KEY_R);
-		}
-		case 0x8: {
-			return IsKeyPressed(KEY_A);
-		}
-		case 0x9: {
-			return IsKeyPressed(KEY_S);
-		}
-		case 0xA: {
-			return IsKeyPressed(KEY_D);
-		}
-		case 0xB: {
-			return IsKeyPressed(KEY_F);
-		}
-		case 0xC: {
-			return IsKeyPressed(KEY_Z);
-		}
-		case 0xD: {
-			return IsKeyPressed(KEY_X);
-		}
-		case 0xE: {
-			return IsKeyPressed(KEY_C);
-		}
-		case 0xF: {
-			return IsKeyPressed(KEY_V);
-		}
-		default: //WARN: should be unreachable
-			return false;
-	}
-}
 
 
 void decrementTimers(Sound beep) {
@@ -102,11 +33,6 @@ void decrementTimers(Sound beep) {
 		soundTimer--;
 	}
 }
-
-
-
-
-
 
 
 // Decode (and Execute) a single instruction
@@ -121,7 +47,6 @@ void decode(const uint16_t& instruction) {
 		case 0x0: {
 			switch (instruction) {
 				case 0x00E0: {
-					printf("Clear screen\n");
 					clearScreen();
 					break;
 				}; 
@@ -152,7 +77,6 @@ void decode(const uint16_t& instruction) {
 		}
 		case 0x4: {
 			// 4XNN skip one instruction if VX is NOT equal to NN
-			printf("comparing VX: %d and NN: %04X\n", readRegister(secondNibble), (instruction & 0x00FF));
 			if (readRegister(secondNibble) != (instruction & 0x00FF)) {
 				skipInstruction();
 			}
@@ -220,6 +144,7 @@ void decode(const uint16_t& instruction) {
 				case 0x6: {
 					//WARN: Ambiguous instruction!
 					
+					// 8XY6
 					// (optional) Set VX to the value of VY
 					// Shift the value of VX one bit to the right
 					// Set VF to 1 if the bit that was shifted out was 1, or 0 if it was 0
@@ -245,7 +170,8 @@ void decode(const uint16_t& instruction) {
 				case 0xE: {
 					//WARN: Ambiguous instruction!
 					
-					// Optional, or configurable) Set VX to the value of VY
+					// 8XYE
+					// Optional, Set VX to the value of VY
 					// Shift the value of VX one bit to the left
 					// Set VF to 1 if the bit that was shifted out was 1, or 0 if it was 0
 					if (!SHIFT_IN_PLACE_FLAG) {
@@ -285,7 +211,6 @@ void decode(const uint16_t& instruction) {
 			// generate a random number, binary AND it with the value NN, and puts the result in VX
 			uint8_t rand8bit = rand() % 256;
 			uint8_t nn = instruction & 0x00FF;
-			printf("random num: %d\n", rand8bit);
 			overwriteRegister(secondNibble, rand8bit & nn);
 			break;
 		} 
@@ -301,7 +226,8 @@ void decode(const uint16_t& instruction) {
 
 			for (int i = 0; i < fourthNibble; i++) {
 			  uint8_t spriteData = readMemory(readRegisterI() + i);
-			  for (int j = 0; j < 8; j++) {
+			  
+				for (int j = 0; j < 8; j++) {
 			    // Get each bit from the most significant to least significant
 					uint8_t pixel = (spriteData >> (7 - j)) & 0x01;
 	
@@ -326,6 +252,7 @@ void decode(const uint16_t& instruction) {
 				case 0xE: {
 					// EX9E will skip one instruction if the key corresponding to the value in VX is pressed
 					uint8_t key_idx = readRegister(secondNibble);
+					
 					if (checkKeypress(key_idx)) {
 						skipInstruction();
 					}
@@ -334,6 +261,7 @@ void decode(const uint16_t& instruction) {
 				case 0x1: {
 					// EXA1 skips if the key corresponding to the value in VX is not pressed
 					uint8_t key_idx = readRegister(secondNibble);
+					
 					if (!checkKeypress(key_idx)) {
 						skipInstruction();
 					}
@@ -368,7 +296,6 @@ void decode(const uint16_t& instruction) {
 					if (newValue > 0x0FFF) {
 						overwriteRegister(0xF, 1);
 					} 
-
 					setRegisterI(newValue);
 					break;
 				}
@@ -402,15 +329,36 @@ void decode(const uint16_t& instruction) {
           break;
 				}
 				case 0x55: {
-					//TODO: 
 					//WARN: Ambiguous instruction!
 					
+					// FX55 store V0 .. VX in memory[I] .. memory[I + X] 
+					// optionally overwrite I
+					uint8_t memory_idx = readRegisterI();
+
+					for (uint8_t register_idx = 0; register_idx <= secondNibble; register_idx++) {
+						overwriteMemory(memory_idx, readRegister(register_idx));
+						memory_idx++;
+					}
+					if (MEMORY_ACCESS_SIDE_EFFECT_FLAG) {
+						setRegisterI(memory_idx);
+					}
 					break;
 				}
 				case 0x65: {
-					//TODO: 
 					//WARN: Ambiguous instruction!
-					
+				
+					// FX65 load memory[I] .. Memory[I + X] into V0 .. VX 
+					// optionally overwrite I
+					uint8_t memory_idx = readRegisterI();
+
+					for (uint8_t register_idx = 0; register_idx <= secondNibble; register_idx++) {
+						overwriteRegister(register_idx, readMemory(memory_idx));
+						memory_idx++;
+					}
+					if (MEMORY_ACCESS_SIDE_EFFECT_FLAG) {
+						setRegisterI(memory_idx);
+					}
+
 					break;
 				}
 			}
@@ -434,23 +382,21 @@ int main(int argc, char** argv) {
 	loadFontsIntoMemory();
 
 	char* fileName = argv[1];
-  	// load rom data into memeory, starting at adress 0x200
+  // load rom data into memeory, starting at adress 0x200
   loadRomIntoMemory(fileName);
-
 
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CHIP-8 EMULATOR");
 	SetTargetFPS(FRAMERATE);
 	srand(time(NULL)); // set random seed using time
 	
-
 	//TODO: move all this audio stuff into separate function 
 	InitAudioDevice();  // Initialize audio device and context
-	// Generate sine wave sample data for a beep
-    unsigned int sampleCount = (unsigned int)(SAMPLE_RATE * DURATION);
-    short *data = (short *)malloc(sampleCount * sizeof(short));
-    for (int i = 0; i < sampleCount; i++) {
-        data[i] = (short)(32767 * sinf(2 * PI * FREQUENCY * i / SAMPLE_RATE));
-    }
+  unsigned int sampleCount = (unsigned int)(SAMPLE_RATE * DURATION); // Generate sine wave sample data for a beep
+  short *data = (short *)malloc(sampleCount * sizeof(short));
+  
+	for (int i = 0; i < sampleCount; i++) {
+    data[i] = (short)(32767 * sinf(2 * PI * FREQUENCY * i / SAMPLE_RATE));
+  }
 
   Wave wave = {
 		sampleCount,
@@ -459,19 +405,16 @@ int main(int argc, char** argv) {
 		1,
     data
   };
-
   Sound beepSound = LoadSoundFromWave(wave);
 
 	while(!WindowShouldClose()) {
 		decrementTimers(beepSound);
-
+		
 		for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++){
 			const uint16_t instruction = fetch();
 			decode(instruction);
 		}
-
 		updateDisplay();
 	}
-
 	CloseWindow();
 }
