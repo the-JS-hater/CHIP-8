@@ -127,23 +127,23 @@ void decode(const uint16_t& instruction) {
 				}
 				case 0x4: {
 					// 8XY4 VX += VY
-					printf("Instruction: %04X\n", instruction);
-					printf("VX: %02X, VY: %02X\n", readRegister(secondNibble), readRegister(thirdNibble));
-					uint16_t testSum = readRegister(secondNibble) + readRegister(thirdNibble);
-					uint8_t sum = readRegister(secondNibble) + readRegister(thirdNibble);
+					// Set VF = 1 if overflow
+					uint8_t vx = readRegister(secondNibble);
+					uint8_t vy = readRegister(thirdNibble);
+					uint16_t testSum = vx + vy;
+					uint8_t sum = vx + vy;
 					uint8_t vf = testSum > 255 ? 1 : 0;
-					overwriteRegister(0xF, vf);
 					overwriteRegister(secondNibble, sum);
-					printf("VX += VY \n");
-					printf("VX: %02X, VY: %02X\n", readRegister(secondNibble), readRegister(thirdNibble));
+					overwriteRegister(0xF, vf);
 					break;
 				}
 				case 0x5: {
 					// 8XY5 VX = VX - VY
+					// Set VF = 1 if overflow
 					uint8_t vx = readRegister(secondNibble);
 					uint8_t vy = readRegister(thirdNibble);
+					uint8_t vf = vx >= vy ? 1 : 0;
 					overwriteRegister(secondNibble, vx - vy);
-					uint8_t vf = vx > vy ? 1 : 0;
 					overwriteRegister(0xF, vf);
 					break;
 				}
@@ -158,18 +158,20 @@ void decode(const uint16_t& instruction) {
 						overwriteRegister(secondNibble, readRegister(thirdNibble));
 					}
 
-					const uint8_t msb_VX = (readRegister(secondNibble) >> 7) & 1;
-					uint8_t vf = (msb_VX == 1) ? 1 : 0;
+					uint8_t vx = readRegister(secondNibble);
+					const uint8_t lsb_VX = vx & 1;
+					uint8_t vf = (lsb_VX == 1) ? 1 : 0;
+					
+					overwriteRegister(secondNibble, vx >> 1);
 					overwriteRegister(0xF, vf);
-					overwriteRegister(secondNibble, readRegister(secondNibble) >> 1);
 					break;
         }
 				case 0x7: {
 					// 8XY7 VX = VY - VX
 					uint8_t vx = readRegister(secondNibble);
 					uint8_t vy = readRegister(thirdNibble);
+					uint8_t vf = vy >= vx ? 1 : 0;
 					overwriteRegister(secondNibble, vy - vx);
-					uint8_t vf = vy > vx ? 1 : 0;
 					overwriteRegister(0xF, vf);
 					break;
 				}
@@ -183,11 +185,12 @@ void decode(const uint16_t& instruction) {
 					if (!SHIFT_IN_PLACE_FLAG) {
 						overwriteRegister(secondNibble, readRegister(thirdNibble));
 					}
-
-					const uint8_t lsb_VX = (readRegister(secondNibble) & 1);
-					uint8_t vf = (lsb_VX == 1) ? 1 : 0;
+					
+					uint8_t vx = readRegister(secondNibble);
+					const uint8_t msb_VX = (vx >> 7) & 1;
+					uint8_t vf = (msb_VX == 1) ? 1 : 0;
+					overwriteRegister(secondNibble, vx << 1);
 					overwriteRegister(0xF, vf);
-					overwriteRegister(secondNibble, readRegister(secondNibble) << 1);
 					break;
 				}
 			}
