@@ -37,7 +37,6 @@ void decrementTimers(Sound beep) {
 
 // Decode (and Execute) a single instruction
 void decode(const uint16_t& instruction) {
-	printf("Decoding instruction: %04X\n", instruction);
 	uint8_t firstNibble  = (instruction & 0xF000) >> 12;
 	uint8_t secondNibble = (instruction & 0x0F00) >> 8;
 	uint8_t thirdNibble  = (instruction & 0x00F0) >> 4;
@@ -128,8 +127,15 @@ void decode(const uint16_t& instruction) {
 				}
 				case 0x4: {
 					// 8XY4 VX += VY
+					printf("Instruction: %04X\n", instruction);
+					printf("VX: %02X, VY: %02X\n", readRegister(secondNibble), readRegister(thirdNibble));
+					uint16_t testSum = readRegister(secondNibble) + readRegister(thirdNibble);
 					uint8_t sum = readRegister(secondNibble) + readRegister(thirdNibble);
+					uint8_t vf = testSum > 255 ? 1 : 0;
+					overwriteRegister(0xF, vf);
 					overwriteRegister(secondNibble, sum);
+					printf("VX += VY \n");
+					printf("VX: %02X, VY: %02X\n", readRegister(secondNibble), readRegister(thirdNibble));
 					break;
 				}
 				case 0x5: {
@@ -155,7 +161,7 @@ void decode(const uint16_t& instruction) {
 					const uint8_t msb_VX = (readRegister(secondNibble) >> 7) & 1;
 					uint8_t vf = (msb_VX == 1) ? 1 : 0;
 					overwriteRegister(0xF, vf);
-					overwriteRegister(secondNibble, readRegister(secondNibble) << 1);
+					overwriteRegister(secondNibble, readRegister(secondNibble) >> 1);
 					break;
         }
 				case 0x7: {
@@ -271,7 +277,7 @@ void decode(const uint16_t& instruction) {
 			break;
 		} 
 		case 0xF: {
-			switch(instruction & 0x00FF){
+			switch (instruction & 0x00FF){
 				case 0x07: {
 					// FX07 sets VX to current value delay timer
 					overwriteRegister(secondNibble, delayTimer);
@@ -333,7 +339,7 @@ void decode(const uint16_t& instruction) {
 					
 					// FX55 store V0 .. VX in memory[I] .. memory[I + X] 
 					// optionally overwrite I
-					uint8_t memory_idx = readRegisterI();
+					uint16_t memory_idx = readRegisterI();
 
 					for (uint8_t register_idx = 0; register_idx <= secondNibble; register_idx++) {
 						overwriteMemory(memory_idx, readRegister(register_idx));
@@ -349,7 +355,7 @@ void decode(const uint16_t& instruction) {
 				
 					// FX65 load memory[I] .. Memory[I + X] into V0 .. VX 
 					// optionally overwrite I
-					uint8_t memory_idx = readRegisterI();
+					uint16_t memory_idx = readRegisterI();
 
 					for (uint8_t register_idx = 0; register_idx <= secondNibble; register_idx++) {
 						overwriteRegister(register_idx, readMemory(memory_idx));
@@ -358,7 +364,6 @@ void decode(const uint16_t& instruction) {
 					if (MEMORY_ACCESS_SIDE_EFFECT_FLAG) {
 						setRegisterI(memory_idx);
 					}
-
 					break;
 				}
 			}

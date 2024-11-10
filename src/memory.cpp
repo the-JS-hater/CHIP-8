@@ -64,7 +64,7 @@ void loadRomIntoMemory(char* filename) {
 	fread(fileBuffer, sizeof(uint8_t), fileLen, filePtr);
 	
 	for (int i = 0; i < fileLen; i++) {
-		printf("Data: %02X, loaded into memory idx: %d\n", fileBuffer[i], i + 0x200);
+		//printf("Data: %02X, loaded into memory idx: %d\n", fileBuffer[i], i + 0x200);
 		memory[i + 0x200] = fileBuffer[i];
 	}
 }
@@ -100,7 +100,7 @@ void initilizeMemory() {
 	VE = 0;
 	VF = 0;
 	
-	register_I = 0;
+	register_I = 0x200;
 	programCounter = 0x200;
 	stack.push(programCounter);
 }
