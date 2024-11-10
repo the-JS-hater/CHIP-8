@@ -5,23 +5,19 @@
 #include <math.h>
 #include <cstdint>
 #include "../include/memory.h"
+#include "../include/display.h"
+
 
 const int SAMPLE_RATE = 44100;  // Sound sample rate
 const float FREQUENCY = 440.0f; // Frequency of the beep (A4 note)
 const float DURATION = 1.0f/60.0f;   // Duration of the beep in seconds
 
-const int PIXEL_SIZE = 16;
-const int DISPLAY_WIDTH = 64;
-const int DISPLAY_HEIGHT = 32;
-const int SCREEN_WIDTH = DISPLAY_WIDTH * PIXEL_SIZE;
-const int SCREEN_HEIGHT = DISPLAY_HEIGHT * PIXEL_SIZE;
 const int FRAMERATE = 60; // ideal for decrementing sound-/delayTimer:s
 const int INSTRUCTIONS_PER_FRAME = 700 / 60; // controll instructions executed per second
 
 /*OPTION FLAGS FOR AMBIGOUS INSTRUCTIONS*/
 const bool SHIFT_IN_PLACE_FLAG = true; // shift VX in place in 8XY6 & 8XYE 
 
-bool display[32][64];
 
 uint8_t delayTimer = 0;
 
@@ -107,31 +103,6 @@ void decrementTimers(Sound beep) {
 	}
 }
 
-
-void updateDisplay() {
-	BeginDrawing();
-	ClearBackground(BLACK);
-	
-	printf("Updating display\n");
-	for (int y = 0; y < DISPLAY_HEIGHT; y++) {
-		for (int x = 0; x < DISPLAY_WIDTH; x++) {
-			if (display[y][x]) {
-				DrawRectangle(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE, WHITE);
-			}
-		}
-	}
-	EndDrawing();
-}
-
-
-void clearScreen() {
-	printf("Clearing the screen\n");
-	for (int y = 0; y < DISPLAY_HEIGHT; y++) {
-		for (int x = 0; x < DISPLAY_WIDTH; x++) {
-			display[y][x] = false;
-		}
-	}
-}
 
 
 
@@ -340,10 +311,10 @@ void decode(const uint16_t& instruction) {
 	
 					// XOR the pixel onto the display and update VF if there's a collision
 					if (pixel) {
-						if (display[posY][posX]) {
+						if (readPixel(posX, posY)) {
 							overwriteRegister(0xF, 1);
 			      }
-			      display[posY][posX] ^= true;
+						XORontoDisplay(posX, posY);
 			    }
 			  }
 			}

@@ -8,10 +8,10 @@ LDIR =../lib
 
 LIBS=-lraylib
 
-_DEPS = memory.h 
+_DEPS = memory.h display.h 
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = main.o memory.o
+_OBJ = main.o memory.o display.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 
