@@ -3,9 +3,9 @@ My first entry into the world of emulator development. Some of the most fun
 i've had in a while. Written in C++(but mostly just plain C), using the Raylib library for audio,
 keyboard input, and graphics
 
-![Test suite title display]("../readme-images/title.png")
-![Space Invaders title screen]("../readme-images/space_invaders.png")
-![Space Invaders gameplay]("../readme-images/space_invaders2.png")
+![Test suite title display](../readme-images/title.png)
+![Space Invaders title screen](../readme-images/space_invaders.png)
+![Space Invaders gameplay](../readme-images/space_invaders2.png)
 
 
 # BUILD
